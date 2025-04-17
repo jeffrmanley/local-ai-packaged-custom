@@ -1,0 +1,30 @@
+from flask import Flask, request, jsonify
+from pdfminer.high_level import extract_text
+import io
+
+app = Flask(__name__)
+
+@app.route('/convert', methods=['POST'])
+def convert_pdf_to_text():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    # request.files['file'] is a FileStorage object.
+    file_storage = request.files['file']
+
+    # Read the entire file into memory
+    file_bytes = file_storage.read()
+
+    # Create a BytesIO object from the file bytes
+    pdf_file = io.BytesIO(file_bytes)
+
+    try:
+        # Pass the BytesIO stream to pdfminer
+        text = extract_text(pdf_file)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"text": text})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001)
