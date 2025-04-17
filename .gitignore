@@ -7,3 +7,4 @@ supabase/
 venv/
 n8n/backup/
 models/
+venv/
