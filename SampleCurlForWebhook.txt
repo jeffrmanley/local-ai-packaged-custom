@@ -1,0 +1,7 @@
+
+
+curl -X POST "http://localhost:5678/webhook-test/ingest-pdf" ^
+  -F "data=@D:\Ionic\cxtcurrentcustomers\Zip_CXT Software License Agreement_2021_06_21_16_10_22.pdf" ^
+  -F "fileName=Zip_CXT Software License Agreement_2021_06_21_16_10_22.pdf" ^
+  -F "acquisitionName=CXT"
+

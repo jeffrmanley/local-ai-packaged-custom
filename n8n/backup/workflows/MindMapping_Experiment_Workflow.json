@@ -1,0 +1,288 @@
+{
+    "name": "Transcription & Review Workflow",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "1",
+        "name": "Start",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          250,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "read",
+          "sheetId": "YourSpreadsheetID",
+          "range": "Sheet1!A1:Z",
+          "options": {}
+        },
+        "id": "2",
+        "name": "Google Sheets Read",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 2,
+        "position": [
+          450,
+          300
+        ],
+        "credentials": {
+          "googleApi": "YourGoogleApiCredential"
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [],
+            "number": [],
+            "string": [
+              {
+                "value1": "={{$json[\"Status\"]}}",
+                "operation": "in",
+                "value2": "['Done','Completed']"
+              }
+            ]
+          }
+        },
+        "id": "3",
+        "name": "IF - Status Check",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          650,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "functionCode": "return items.filter(item => item.json[\"Session Recording or Folder Link\"]);\n"
+        },
+        "id": "4",
+        "name": "Filter Valid Link",
+        "type": "n8n-nodes-base.function",
+        "typeVersion": 1,
+        "position": [
+          850,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "url": "http://whisper:5000/transcribe",
+          "method": "POST",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={{ { \"fileUrl\": $json[\"Session Recording or Folder Link\"] } }}"
+        },
+        "id": "5",
+        "name": "Whisper Transcription",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 2,
+        "position": [
+          1050,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mergeMode": "append",
+          "fields": {
+            "transcript": "={{$json[\"transcriptionResult\"][\"transcript\"]}}"
+          }
+        },
+        "id": "10",
+        "name": "Set Transcript",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 1,
+        "position": [
+          1050,
+          500
+        ]
+      },
+      {
+        "parameters": {
+          "prompt": "Determine if the following transcript covers the scope provided.\n\nTranscript:\n{{$json[\"transcript\"]}}\n\nScope:\n{{$json[\"Scope\"]}}\n\nPlease respond with either \"Review Passed\" or \"Review Failed\" and include a brief explanation.",
+          "model": "text-davinci-003",
+          "temperature": 0.7,
+          "maxTokens": 150,
+          "topP": 1,
+          "frequencyPenalty": 0,
+          "presencePenalty": 0,
+          "options": {}
+        },
+        "id": "6",
+        "name": "OpenAI Analysis",
+        "type": "n8n-nodes-base.openAi",
+        "typeVersion": 1,
+        "position": [
+          1250,
+          300
+        ],
+        "credentials": {
+          "openAiApi": "YourOpenAICredential"
+        }
+      },
+      {
+        "parameters": {
+          "functionCode": "const response = $json[\"choices\"][0].text;\n\n// Determine review status and explanation\nlet reviewStatus = response.includes(\"Review Passed\") ? \"Review Passed\" : \"Review Failed\";\nlet notes = response.replace(/Review Passed|Review Failed/gi, '').trim();\n\nreturn [{ json: { reviewStatus, notes, id: $json[\"id\"] } }];\n"
+        },
+        "id": "9",
+        "name": "Parse LLM Response",
+        "type": "n8n-nodes-base.function",
+        "typeVersion": 1,
+        "position": [
+          1450,
+          500
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [],
+            "number": [],
+            "string": [
+              {
+                "value1": "={{$json[\"reviewStatus\"]}}",
+                "operation": "equal",
+                "value2": "Review Passed"
+              }
+            ]
+          }
+        },
+        "id": "7",
+        "name": "IF - LLM Result",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1450,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "sheetId": "YourSpreadsheetID",
+          "range": "Sheet1!A1:Z",
+          "keyColumn": "ID",
+          "updateData": "={{ { \"Status\": $json[\"reviewStatus\"], \"Notes\": $json[\"notes\"] } }}"
+        },
+        "id": "8",
+        "name": "Google Sheets Update",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 2,
+        "position": [
+          1650,
+          300
+        ],
+        "credentials": {
+          "googleApi": "YourGoogleApiCredential"
+        }
+      }
+    ],
+    "connections": {
+      "Start": {
+        "main": [
+          [
+            {
+              "node": "Google Sheets Read",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google Sheets Read": {
+        "main": [
+          [
+            {
+              "node": "IF - Status Check",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "IF - Status Check": {
+        "main": [
+          [
+            {
+              "node": "Filter Valid Link",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter Valid Link": {
+        "main": [
+          [
+            {
+              "node": "Whisper Transcription",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Whisper Transcription": {
+        "main": [
+          [
+            {
+              "node": "Set Transcript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Transcript": {
+        "main": [
+          [
+            {
+              "node": "OpenAI Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "OpenAI Analysis": {
+        "main": [
+          [
+            {
+              "node": "Parse LLM Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse LLM Response": {
+        "main": [
+          [
+            {
+              "node": "IF - LLM Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "IF - LLM Result": {
+        "main": [
+          [
+            {
+              "node": "Google Sheets Update",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "active": false,
+    "settings": {},
+    "id": "1"
+  }
+  

@@ -1,0 +1,431 @@
+{
+  "name": "MindMappingv1",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "c234cf7e-7c2f-4292-b25e-32b9ab511f66",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -380,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "o3-mini",
+          "mode": "list",
+          "cachedResultName": "O3-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=As my expert analyst I need you to help me determine if our functional leader hit the high quality bar in this mind mapping session. For each session they outline the scope/goal of the call. I'm going to provide you with that scope and the transcript from the call. If they cover the scope and dig deeper than originally planned that is okay as we view this as accelerating the process of mind mapping and they should not be penalized for that but you should update their scope summary with what they covered that was not reported. Your job it to grade the quality of the call based on the coverage of the scope. I need you to provide a quality score from 1 to 10 (10 being top quality) and then explain in detail why you gave that grade. Also return the newStatus as \"Review Passed\" is the quality score is >7 otherwise \"Review Failed\". Also return the updated scope summary.\n\nScope:\n{{$json[\"Scope\"]}}\n\nTranscript:\n{{ $json.transcription }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        660,
+        -20
+      ],
+      "id": "e7d985f1-9c77-4c48-b200-ad18a838854e",
+      "name": "OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "juFm484ufxd0SKLQ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json[\"Session Recording or Folder Link\"] }}",
+          "mode": "url"
+        },
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        20,
+        -20
+      ],
+      "id": "dbdac68f-0ac7-4f6c-a51e-3befc1a6eb18",
+      "name": "Download the mp4 file",
+      "notesInFlow": false,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "SeUxN5vizMCk5OUN",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://whisper-api:5000/transcribe",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -20
+      ],
+      "id": "e65d103d-5d03-4908-af71-ff694dfb8f7c",
+      "name": "Process mp4 to get transcript"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "Scope",
+              "value": "={{ $('ReadTracker').first().json.Scope }}"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "id": "b86d12dc-3abe-4d06-92fa-d68a626ecfcd",
+      "name": "Set fields for AI model",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1zyfJ-55Q-cfVd_mctpI1gwMkgyiqm9rrGvnvYYlrdys",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zyfJ-55Q-cfVd_mctpI1gwMkgyiqm9rrGvnvYYlrdys/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $('ReadTracker').first().json.row_number }}",
+            "Status": "={{ $json.choices[0].message.content.newStatus }}",
+            "Notes": "=Updated: {{ $now }}\n\nQuality Score: {{ $json.choices[0].message.content.qualityScore }}/10\n\nExplanation: \n{{ $json.choices[0].message.content.explanation }}\n\nUpdated Scope (if any): \n{{ $json.choices[0].message.content.updatedScopeSummary }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "Navigator",
+              "displayName": "Navigator",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Critical Knowledge Pillar (Y/N)",
+              "displayName": "Critical Knowledge Pillar (Y/N)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Driver",
+              "displayName": "Driver",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Process",
+              "displayName": "Process",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Skill",
+              "displayName": "Skill",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Training Priority",
+              "displayName": "Training Priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Started At",
+              "displayName": "Started At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Completed At",
+              "displayName": "Completed At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Scope",
+              "displayName": "Scope",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Session Recording or Folder Link",
+              "displayName": "Session Recording or Folder Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Otter.ai link",
+              "displayName": "Otter.ai link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1020,
+        -20
+      ],
+      "id": "35d0f2d3-c0b2-4682-aaff-b32eef2bf5e6",
+      "name": "Update the Mind Mapping Tracker",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZCMZOdd6rvFZp67e",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1zyfJ-55Q-cfVd_mctpI1gwMkgyiqm9rrGvnvYYlrdys",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zyfJ-55Q-cfVd_mctpI1gwMkgyiqm9rrGvnvYYlrdys/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Done"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -180,
+        -20
+      ],
+      "id": "b5fe4729-eb51-4929-80ca-94ea4eba91d0",
+      "name": "ReadTracker",
+      "retryOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZCMZOdd6rvFZp67e",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "ReadTracker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Update the Mind Mapping Tracker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download the mp4 file": {
+      "main": [
+        [
+          {
+            "node": "Process mp4 to get transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process mp4 to get transcript": {
+      "main": [
+        [
+          {
+            "node": "Set fields for AI model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set fields for AI model": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update the Mind Mapping Tracker": {
+      "main": [
+        []
+      ]
+    },
+    "ReadTracker": {
+      "main": [
+        [
+          {
+            "node": "Download the mp4 file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "df449986-b4bb-4e49-89cd-0b0c40c0f30d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "18f11b5eb5435aafcf841f220186a0197b6349f969af848eb84c4d4eff06b974"
+  },
+  "id": "8KKfJ4xgeF7FfZA6",
+  "tags": []
+}

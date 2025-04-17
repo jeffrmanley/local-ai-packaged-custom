@@ -1,5 +1,9 @@
 .env
 .env.test
+SampleCurlForWebhook.txt
 volumes/
 shared/
 supabase/
+venv/
+n8n/backup/
+models/

@@ -33,9 +33,7 @@ x-init-ollama: &init-ollama
   volumes:
     - ollama_storage:/root/.ollama
   entrypoint: /bin/sh
-  command:
-    - "-c"
-    - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen2.5:7b-instruct-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"
+  command: ["-c", "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen2.5:7b-instruct-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"]
 
 services:
   flowise:
@@ -43,13 +41,13 @@ services:
     restart: unless-stopped
     container_name: flowise
     environment:
-        - PORT=3001
+      - PORT=3001
     ports:
-        - 3001:3001
+      - 3001:3001
     extra_hosts:
-      - "host.docker.internal:host-gateway"        
+      - "host.docker.internal:host-gateway"
     volumes:
-        - ~/.flowise:/root/.flowise
+      - ~/.flowise:/root/.flowise
     entrypoint: /bin/sh -c "sleep 3; flowise start"
 
   open-webui:
@@ -63,29 +61,43 @@ services:
     volumes:
       - open-webui:/app/backend/data
 
-  n8n-import:
-    <<: *service-n8n
-    container_name: n8n-import
-    entrypoint: /bin/sh
-    command:
-      - "-c"
-      - "n8n import:credentials --separate --input=/backup/credentials && n8n import:workflow --separate --input=/backup/workflows"
-    volumes:
-      - ./n8n/backup:/backup  
-
   n8n:
     <<: *service-n8n
     container_name: n8n
-    restart: unless-stopped
+    restart: always
+    build: 
+      context: .
+      dockerfile: Dockerfile.n8n
+    shm_size: '2gb' # Optional but recommended for Puppeteer/Chromium
     ports:
       - 5678:5678
+    environment:
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+      - N8N_FILESYSTEM_BINARY_DATA_PATH=/home/node/.n8n/binaryData
+      - N8N_RELEASE_DATE=2025-03-19T20:45:00Z
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_RUNNERS_ENABLED=true
     volumes:
       - n8n_storage:/home/node/.n8n
       - ./n8n/backup:/backup
       - ./shared:/data/shared
+      - "C:/Ionic/OneDrive - Ionic Partners/Potential Companies:/ionicpc"
+      - "C:/Ionic/OneDrive - Ionic Partners/Portfolio:/ionicportfolio"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5678 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  n8n-import:
+    <<: *service-n8n
+    container_name: n8n-import
+    entrypoint: /bin/sh
+    command: ["-c", "sleep 20 && n8n import:credentials --separate --input=/backup/credentials && n8n import:workflow --separate --input=/backup/workflows"]
+    volumes:
+      - ./n8n/backup:/backup
     depends_on:
-      n8n-import:
-        condition: service_completed_successfully
+      - n8n
 
   qdrant:
     image: qdrant/qdrant
@@ -132,8 +144,78 @@ services:
       - ollama-gpu
 
   ollama-pull-llama-gpu-amd:
-    profiles: [gpu-amd]
+    profiles: ["gpu-amd"]
     <<: *init-ollama
     image: ollama/ollama:rocm
     depends_on:
-     - ollama-gpu-amd
+      - ollama-gpu-amd
+
+  whisper-api:
+    build:
+      context: ./whisper-api
+      dockerfile: Dockerfile
+    container_name: whisper-api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 4G
+
+
+  pdf-to-text:
+    build:
+      context: ./pdf-to-text
+      dockerfile: Dockerfile
+    container_name: pdf-to-text
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+
+  ocr-service:
+    image: jbarlow83/ocrmypdf-alpine
+    container_name: ocr-service
+    restart: unless-stopped
+    ports:
+      - "5100:5000"  # container listens on port 5000; map as needed
+    entrypoint: ["python"]
+    command: ["webservice.py"]
+
+  mcp-stagehand:
+    build:
+      context: ./mcp-stagehand
+      dockerfile: Dockerfile   # or Dockerfile.mcp if you named it that way
+    container_name: mcp-stagehand
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+
+  video-processing:
+    build:
+      context: ./video-processing
+      dockerfile: Dockerfile
+    container_name: video-processing
+    restart: always
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+    ports:
+      - "6060:6000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+# (Optional: You can add other services here if needed)
