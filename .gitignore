@@ -1,10 +1,21 @@
+# Environment files
 .env
 .env.test
+
+# Misc
 SampleCurlForWebhook.txt
+
+# Volumes & shared data
 volumes/
 shared/
 supabase/
+
+# Python virtualenv & backups
 venv/
 n8n/backup/
 models/
-venv/
+
+# Upstream searxng overrides (ignore your local ini & settings)
+searxng/uwsgi.ini
+searxng/settings.yml
+
